@@ -1,7 +1,7 @@
 # Especificación Formal — Sistema de Préstamo de Libros
 
-> **Autor:** [Tu nombre]
-> **Fecha:** [Fecha del taller]
+> **Autor:** [Bryan Cartagena Hincapie]
+> **Fecha:** [05/05/2026]
 > **Versión:** 1.0
 > **Brief de origen:** Correo de Diana Restrepo, Coordinadora de Biblioteca
 
@@ -11,7 +11,7 @@
 
 ## 1. Propósito del sistema
 
-[Describe en 3-5 líneas qué hace el sistema, en tus propias palabras. No copies el correo. Reformúlalo como técnico.]
+[Se desea digitalizar un sistema inteligente de una biblioteca para administrar el prestamo de libros, debido a su alto flujo, se deben tener en cuenta varias condiciones para el correcto funcionamiento de la aplicación]
 
 ---
 
@@ -19,11 +19,20 @@
 
 **Incluido en esta versión:**
 
-- [Lista lo que sí está cubierto, bullet a bullet]
+- [Consulta catalogo de libros disponibles]
+- [Solicitud de prestamos por porta de los estudiantes]
+- [Devolución de prestamos por parte de los estudiantes]
+- [Consulta de prestamos vigentes por parte de los estudiantes]
+- [Calculo de multas por incumplimiento del prestamo]
+- [Automatización por dias para informar el vencimiento de un prestamos]
+- [Generación de datos en memoria]
+- [Historial de prestamos por estudiante]
 
 **Explícitamente fuera del alcance:**
 
-- [Lista lo que el correo menciona pero NO se va a implementar. Por ejemplo: el caso de los profesores investigadores.]
+- [Funcionalidades para profesores investigadores]
+- [Integración con base de datos especifica]
+- [FrontEnd]
 
 ---
 
@@ -32,11 +41,20 @@
 ### Entidad: Libro
 
 | Campo     | Tipo     | Obligatorio | Descripción   |
-| `[campo]` | `[tipo]` | sí/no       | [descripción] |
+| `[libro_id]` | `[string]` | sí       | [identificador unico por libro] |
+| `[nombre]` | `[string]` | sí       | [Nombre del libro] |
+| `[autor]` | `[string]` | sí       | [Autor del libro] |
+| `[disponible]` | `[boolean]` | si       | [identificador unico por libro] |
+| `[cantidad]` | `[int]` | si       | [identificador unico por libro] |
+
+
 
 ### Entidad: Ejemplar
 
-[Repite la tabla. Cada libro puede tener varios ejemplares. Decide tú la estructura.]
+| Campo     | Tipo     | Obligatorio | Descripción   |
+| `[ejemplar_id]` | `[string]` | sí       | [identificador unico por ejemplar] |
+| `[disponible]` | `[boolean]` | si       | [identificador unico por libro] |
+| `[libro_id]` | `[string]` | si       | [identificador por libro] |
 
 ### Entidad: Estudiante
 
@@ -130,7 +148,6 @@ Prestamo 0..1 --- 1 Multa
 
 ### D2, D3, D4, D5...
 
----
 
 ## 7. Códigos HTTP usados
 
@@ -148,8 +165,8 @@ Prestamo 0..1 --- 1 Multa
 
 ## 8. Restricciones técnicas
 
-- **Stack:** [Node.js + Express / Python + FastAPI / etc.]
+- **Stack:** [Node.js 20 LTS + Express]
 - **Persistencia:** datos en memoria. No usar base de datos.
-- **TypeScript** (según tu stack).
+- **TypeScript** Si.
 - **Sin autenticación** en esta versión.
 - **Sin frontend** en esta versión. Solo API REST.
