@@ -44,8 +44,8 @@
 | `[libro_id]` | `[string]` | sí       | [identificador unico por libro] |
 | `[nombre]` | `[string]` | sí       | [Nombre del libro] |
 | `[autor]` | `[string]` | sí       | [Autor del libro] |
-| `[cantidad]` | `[int]` | si       | [identificador unico por libro] |
-| `[cantidad_disponible]` | `[int]` | si       | [identificador unico por libro] |
+| `[cantidad]` | `[int]` | si       | [cantidad de libros que tiene la biblioteca] |
+| `[cantidad_disponible]` | `[int]` | si       | [cantidad actual de libros para prestamo] |
 
 
 
@@ -54,7 +54,8 @@
 | Campo     | Tipo     | Obligatorio | Descripción   |
 | `[ejemplar_id]` | `[string]` | sí       | [identificador unico por ejemplar] |
 | `[disponible]` | `[boolean]` | si       | [identificador unico por libro] |
-| `[libro_id]` | `[string]` | si       | [identificador por libro] |
+| `[libro_id]` | `[foreign key]` | si       | [identificador por libro] |
+| `[prestamo_id]` | `[foreign key]` | no       | [identificador por libro] |
 
 ### Entidad: Estudiante
 
