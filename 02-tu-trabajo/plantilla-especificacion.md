@@ -44,8 +44,8 @@
 | `[libro_id]` | `[string]` | sí       | [identificador unico por libro] |
 | `[nombre]` | `[string]` | sí       | [Nombre del libro] |
 | `[autor]` | `[string]` | sí       | [Autor del libro] |
-| `[disponible]` | `[boolean]` | si       | [identificador unico por libro] |
 | `[cantidad]` | `[int]` | si       | [identificador unico por libro] |
+| `[cantidad_disponible]` | `[int]` | si       | [identificador unico por libro] |
 
 
 
