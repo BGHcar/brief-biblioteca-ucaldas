@@ -1,0 +1,36 @@
+{
+  "name": "sistema-prestamo-libros",
+  "version": "1.0.0",
+  "description": "API REST para gestionar préstamos de libros de la biblioteca de Universidad de Caldas",
+  "main": "dist/app.js",
+  "scripts": {
+    "start": "node dist/app.js",
+    "dev": "ts-node src/app.ts",
+    "build": "tsc",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": [
+    "biblioteca",
+    "prestamos",
+    "libros",
+    "api-rest"
+  ],
+  "author": "Bryan Cartagena Hincapie",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.2",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  }
+}
