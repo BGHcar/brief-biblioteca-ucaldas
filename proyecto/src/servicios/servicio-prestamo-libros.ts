@@ -80,8 +80,19 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    const prestamosActivos = (await baseDatos.obtenerPrestamosPorEstudiante(estudiante_id))
-      .filter((p: Prestamo) => p.estado === EstadoPrestamo.ACTIVO);
+    // Obtener la fecha de referencia (simulada o actual)
+    let fechaReferencia = new Date();
+    if (datos.fechaPrestamoSimulada) {
+      const d = new Date(datos.fechaPrestamoSimulada);
+      if (!isNaN(d.getTime())) {
+        fechaReferencia = d;
+      }
+    }
+
+    const todosLosPrestamos = await baseDatos.obtenerPrestamosPorEstudiante(estudiante_id);
+    
+    // RN1/RN2: Contar préstamos activos (sin devolver)
+    const prestamosActivos = todosLosPrestamos.filter((p: Prestamo) => p.fecha_devolucion_real === null);
 
     const limiteSegunTipo = estudiante.tipo_estudiante === TipoEstudiante.PREGRADO ? 3 : 5;
     if (prestamosActivos.length >= limiteSegunTipo) {
@@ -93,7 +104,8 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    const prestamosVencidos = prestamosActivos.filter((p: Prestamo) => p.estado === EstadoPrestamo.VENCIDO);
+    // RN3: Verificar si hay préstamos vencidos (activos con fecha_devolucion_esperada < fechaReferencia)
+    const prestamosVencidos = prestamosActivos.filter((p: Prestamo) => p.fecha_devolucion_esperada < fechaReferencia);
     if (prestamosVencidos.length > 0) {
       const error = new Error('Tiene préstamo vencido sin devolver') as any;
       error.httpCode = 409;
@@ -128,6 +140,9 @@ class ServicioPrestamoLibros {
         throw error;
       }
       fechaPrestamo = d;
+    } else {
+      // Si no hay fecha simulada, usar la misma que se usó para fechaReferencia (debe ser la actual)
+      fechaPrestamo = fechaReferencia;
     }
 
     const diasPlazo = libro.alta_demanda ? 3 : 15;
