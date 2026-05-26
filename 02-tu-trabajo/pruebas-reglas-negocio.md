@@ -412,32 +412,24 @@ curl -s $BASE_CON_IA/api/estudiantes/NO-EXISTE-999/historial | jq
 
 ## Tabla comparativa de resultados
 
-Resultados consolidados tras análisis y ejecución de pruebas de control en ambas versiones.
+Llena esta tabla con lo que observaste al correr cada prueba en ambas versiones. Pegala en tu `bitacora.md`.
 
 | Prueba                         | Regla | Esperado        | Sin IA — HTTP | Sin IA — body util | Con IA — HTTP | Con IA — body util |
 |--------------------------------|-------|-----------------|---------------|--------------------|---------------|--------------------|
-| RN1-B cuarto prestamo pregrado | RN1   | 409             | 409           | Sí (genérico)      | 409           | Sí (semántico)     |
-| RN2-B sexto prestamo posgrado  | RN2   | 409             | 409           | Sí (no diferencia) | 409           | Sí (límite 5)      |
-| RN5-B ejemplar ya prestado     | RN5   | 409             | 409           | Sí                 | 409           | Sí                 |
-| RN6-A plazo libro normal       | RN6   | fecha + 15 dias | 201           | No (ignora plazo)  | 201           | Sí (calcula)       |
-| RN6-B plazo alta demanda       | RN6   | fecha + 3 dias  | 201           | No (ignora tipo)   | 201           | Sí (calcula)       |
-| RN3 prestamo con vencido       | RN3   | 409             | 201           | No (ignora)        | 409           | Sí                 |
-| RN4-B prestamo con multa       | RN4   | 409             | 201           | No (ignora)        | 409           | Sí                 |
-| RN8 calculo de multa           | RN8   | N x 2000        | N/A           | N/A                | Sí            | Sí                 |
-| VAL-1 body vacio               | —     | 400             | 400           | Sí                 | 400           | Sí                 |
-| VAL-2 estudiante inexistente   | —     | 404             | 404           | Sí                 | 404           | Sí                 |
-| VAL-3 ejemplar inexistente     | —     | 404             | 404           | Sí                 | 404           | Sí                 |
-| VAL-4 tipo incorrecto en body  | —     | 400             | 500 (crash)   | No                 | 400           | Sí                 |
+| RN1-B cuarto prestamo pregrado | RN1   | 409             |               |                    |               |                    |
+| RN2-B sexto prestamo posgrado  | RN2   | 409             |               |                    |               |                    |
+| RN5-B ejemplar ya prestado     | RN5   | 409             |               |                    |               |                    |
+| RN6-A plazo libro normal       | RN6   | fecha + 15 dias |               |                    |               |                    |
+| RN6-B plazo alta demanda       | RN6   | fecha + 3 dias  |               |                    |               |                    |
+| RN3 prestamo con vencido       | RN3   | 409             |               |                    |               |                    |
+| RN4-B prestamo con multa       | RN4   | 409             |               |                    |               |                    |
+| RN8 calculo de multa           | RN8   | N x 2000        |               |                    |               |                    |
+| VAL-1 body vacio               | —     | 400             |               |                    |               |                    |
+| VAL-2 estudiante inexistente   | —     | 404             |               |                    |               |                    |
+| VAL-3 ejemplar inexistente     | —     | 404             |               |                    |               |                    |
+| VAL-4 tipo incorrecto          | —     | 400             |               |                    |               |                    |
 
-**Columna "body util":** 
-- `Sí` si la respuesta incluye un mensaje que explica por qué falló o qué hizo.
-- `No` si solo devuelve el código sin explicación.
-- `N/A` si la versión no implementa la funcionalidad.
-
-### Resumen de Cobertura
-
-- **Sin IA** (proyecto-v1): 6/12 pruebas con comportamiento esperado. No implementa RN3, RN4, RN6, RN8 ni validación robusta.
-- **Con IA** (proyecto): 12/12 pruebas con comportamiento esperado. Cobertura completa con mensajes contextuales en errores.
+**Columna "body util":** escribe `Si` si la respuesta incluye un mensaje que explica por que fallo, o `No` si solo devuelve el codigo sin explicacion.
 
 ---
 
