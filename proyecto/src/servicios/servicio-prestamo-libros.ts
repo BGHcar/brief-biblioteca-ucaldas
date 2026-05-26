@@ -7,73 +7,82 @@ import {
 } from '../modelos/tipos';
 
 class ServicioPrestamoLibros {
-
   // ========== LIBROS ==========
 
-  obtenerLibros(filtroDisponibles?: boolean) {
-    const libros = baseDatos.getLibros();
+  async obtenerLibros(filtroDisponibles?: boolean): Promise<Libro[]> {
+    const libros = await baseDatos.getLibros();
     if (!filtroDisponibles) return libros;
-    
-    return libros.filter(libro => {
-      const ejemplaresDelLibro = baseDatos.getEjemplares()
+
+    return Promise.all(libros.map(async libro => {
+      const ejemplaresDelLibro = (await baseDatos.getEjemplares())
         .filter(e => e.libro_id === libro.libro_id);
-      return ejemplaresDelLibro.some(e => e.disponible);
-    });
+      return ejemplaresDelLibro.some(e => e.disponible) ? libro : null;
+    })).then(result => result.filter((libro): libro is Libro => libro !== null));
   }
 
-  obtenerLibro(libro_id: string) {
-    const libro = baseDatos.obtenerLibro(libro_id);
-    if (!libro) throw new Error(`Libro ${libro_id} no encontrado`);
+  async obtenerLibro(libro_id: string): Promise<Libro> {
+    const libro = await baseDatos.obtenerLibro(libro_id);
+    if (!libro) {
+      const error = new Error(`Libro ${libro_id} no encontrado`) as any;
+      error.cause = 404;
+      throw error;
+    }
     return libro;
   }
 
   // ========== EJEMPLARES ==========
 
-  obtenerEjemplar(ejemplar_id: string) {
-    const ejemplar = baseDatos.obtenerEjemplar(ejemplar_id);
-    if (!ejemplar) throw new Error(`Ejemplar ${ejemplar_id} no encontrado`);
+  async obtenerEjemplar(ejemplar_id: string): Promise<Ejemplar> {
+    const ejemplar = await baseDatos.obtenerEjemplar(ejemplar_id);
+    if (!ejemplar) {
+      const error = new Error(`Ejemplar ${ejemplar_id} no encontrado`) as any;
+      error.cause = 404;
+      throw error;
+    }
     return ejemplar;
   }
 
   // ========== ESTUDIANTES ==========
 
-  obtenerEstudiante(estudiante_id: string) {
-    const estudiante = baseDatos.obtenerEstudiante(estudiante_id);
-    if (!estudiante) throw new Error(`Estudiante ${estudiante_id} no encontrado`);
+  async obtenerEstudiante(estudiante_id: string): Promise<Estudiante> {
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
+    if (!estudiante) {
+      const error = new Error(`Estudiante ${estudiante_id} no encontrado`) as any;
+      error.cause = 404;
+      throw error;
+    }
     return estudiante;
   }
 
   // ========== PRESTAMOS ==========
 
-  crearPrestamo(datos: CrearPrestamoDTO): Prestamo {
+  async crearPrestamo(datos: CrearPrestamoDTO): Promise<Prestamo> {
     const { estudiante_id, ejemplar_id } = datos;
 
-    // Validar existencia de estudiante y ejemplar
-    const estudiante = baseDatos.obtenerEstudiante(estudiante_id);
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
     if (!estudiante) {
       const error = new Error('Estudiante no encontrado') as any;
       error.cause = 404;
       throw error;
     }
 
-    const ejemplar = baseDatos.obtenerEjemplar(ejemplar_id);
+    const ejemplar = await baseDatos.obtenerEjemplar(ejemplar_id);
     if (!ejemplar) {
       const error = new Error('Ejemplar no encontrado') as any;
       error.cause = 404;
       throw error;
     }
 
-    const libro = baseDatos.obtenerLibro(ejemplar.libro_id);
+    const libro = await baseDatos.obtenerLibro(ejemplar.libro_id);
     if (!libro) {
       const error = new Error('Libro no encontrado') as any;
       error.cause = 404;
       throw error;
     }
 
-    // RN1: Validar límite de préstamos por tipo de estudiante
-    const prestamosActivos = baseDatos.obtenerPrestamosPorEstudiante(estudiante_id)
+    const prestamosActivos = (await baseDatos.obtenerPrestamosPorEstudiante(estudiante_id))
       .filter((p: Prestamo) => p.estado === EstadoPrestamo.ACTIVO);
-    
+
     const limiteSegunTipo = estudiante.tipo_estudiante === TipoEstudiante.PREGRADO ? 3 : 5;
     if (prestamosActivos.length >= limiteSegunTipo) {
       const error = new Error('Límite de préstamos alcanzado') as any;
@@ -84,7 +93,6 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    // RN3: Validar que no haya préstamo vencido sin devolver
     const prestamosVencidos = prestamosActivos.filter((p: Prestamo) => p.estado === EstadoPrestamo.VENCIDO);
     if (prestamosVencidos.length > 0) {
       const error = new Error('Tiene préstamo vencido sin devolver') as any;
@@ -94,8 +102,7 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    // RN4: Validar que no tenga multas pendientes
-    const multasPendientes = baseDatos.obtenerMultasPorEstudiante(estudiante_id)
+    const multasPendientes = (await baseDatos.obtenerMultasPorEstudiante(estudiante_id))
       .filter(m => m.estado === EstadoMulta.PENDIENTE);
     if (multasPendientes.length > 0) {
       const error = new Error('Tiene multas pendientes') as any;
@@ -105,7 +112,6 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    // RN5: Validar disponibilidad del ejemplar
     if (!ejemplar.disponible) {
       const error = new Error('Ejemplar no disponible') as any;
       error.httpCode = 409;
@@ -113,13 +119,21 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    // RN2: Calcular plazo según tipo de libro
-    const fechaPrestamo = new Date();
+    let fechaPrestamo = new Date();
+    if (datos.fechaPrestamoSimulada) {
+      const d = new Date(datos.fechaPrestamoSimulada);
+      if (isNaN(d.getTime())) {
+        const error = new Error('fechaPrestamoSimulada inválida') as any;
+        error.httpCode = 400;
+        throw error;
+      }
+      fechaPrestamo = d;
+    }
+
     const diasPlazo = libro.alta_demanda ? 3 : 15;
     const fechaDevolucionEsperada = new Date(fechaPrestamo);
     fechaDevolucionEsperada.setDate(fechaDevolucionEsperada.getDate() + diasPlazo);
 
-    // Crear préstamo
     const prestamo: Prestamo = {
       prestamo_id: uuidv4(),
       estudiante_id,
@@ -131,60 +145,57 @@ class ServicioPrestamoLibros {
       renovado: false
     };
 
-    // Marcar ejemplar como no disponible
     ejemplar.disponible = false;
-    baseDatos.actualizarEjemplar(ejemplar_id, ejemplar);
-
-    // Guardar préstamo
-    baseDatos.agregarPrestamo(prestamo);
+    await baseDatos.actualizarEjemplar(ejemplar_id, ejemplar);
+    await baseDatos.agregarPrestamo(prestamo);
 
     return prestamo;
   }
 
-  obtenerPrestamo(prestamo_id: string): Prestamo {
-    const prestamo = baseDatos.obtenerPrestamo(prestamo_id);
+  async obtenerPrestamo(prestamo_id: string): Promise<Prestamo> {
+    const prestamo = await baseDatos.obtenerPrestamo(prestamo_id);
     if (!prestamo) {
       const error = new Error('Préstamo no encontrado') as any;
       error.cause = 404;
       throw error;
     }
-    
-    // RN8: Detectar automáticamente vencimiento
-    this.actualizarEstadoVencimiento(prestamo);
+
+    await this.actualizarEstadoVencimiento(prestamo);
     return prestamo;
   }
 
-  obtenerPrestamosPorEstudiante(estudiante_id: string): Prestamo[] {
-    const estudiante = baseDatos.obtenerEstudiante(estudiante_id);
+  async obtenerPrestamosPorEstudiante(estudiante_id: string): Promise<Prestamo[]> {
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
     if (!estudiante) {
       const error = new Error('Estudiante no encontrado') as any;
       error.cause = 404;
       throw error;
     }
 
-    const prestamos = baseDatos.obtenerPrestamosPorEstudiante(estudiante_id);
-    
-    // RN8: Actualizar estado de vencimiento para todos
-    prestamos.forEach((p: Prestamo) => this.actualizarEstadoVencimiento(p));
-    
+    const prestamos = await baseDatos.obtenerPrestamosPorEstudiante(estudiante_id);
+    for (const p of prestamos) {
+      await this.actualizarEstadoVencimiento(p);
+    }
     return prestamos.filter((p: Prestamo) => p.estado === EstadoPrestamo.ACTIVO);
   }
 
-  obtenerHistorialPorEstudiante(estudiante_id: string): Prestamo[] {
-    const estudiante = baseDatos.obtenerEstudiante(estudiante_id);
+  async obtenerHistorialPorEstudiante(estudiante_id: string): Promise<Prestamo[]> {
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
     if (!estudiante) {
       const error = new Error('Estudiante no encontrado') as any;
       error.cause = 404;
       throw error;
     }
 
-    const prestamos = baseDatos.obtenerPrestamosPorEstudiante(estudiante_id);
-    prestamos.forEach((p: Prestamo) => this.actualizarEstadoVencimiento(p));
+    const prestamos = await baseDatos.obtenerPrestamosPorEstudiante(estudiante_id);
+    for (const p of prestamos) {
+      await this.actualizarEstadoVencimiento(p);
+    }
     return prestamos;
   }
 
-  devolverPrestamo(prestamo_id: string, datos: DevolverPrestamoDTO): Prestamo {
-    const prestamo = baseDatos.obtenerPrestamo(prestamo_id);
+  async devolverPrestamo(prestamo_id: string, datos: DevolverPrestamoDTO): Promise<Prestamo> {
+    const prestamo = await baseDatos.obtenerPrestamo(prestamo_id);
     if (!prestamo) {
       const error = new Error('Préstamo no encontrado') as any;
       error.cause = 404;
@@ -192,11 +203,15 @@ class ServicioPrestamoLibros {
     }
 
     const fechaDevolucion = new Date(datos.fecha_devolucion_real);
+    if (isNaN(fechaDevolucion.getTime())) {
+      const error = new Error('fecha_devolucion_real inválida') as any;
+      error.httpCode = 400;
+      throw error;
+    }
 
-    // RN6: Calcular multa si hay retraso
     if (fechaDevolucion > prestamo.fecha_devolucion_esperada) {
       const diasRetraso = Math.ceil(
-        (fechaDevolucion.getTime() - prestamo.fecha_devolucion_esperada.getTime()) 
+        (fechaDevolucion.getTime() - prestamo.fecha_devolucion_esperada.getTime())
         / (1000 * 60 * 60 * 24)
       );
       const monto = diasRetraso * 2000;
@@ -211,38 +226,44 @@ class ServicioPrestamoLibros {
         fecha_calculo: new Date()
       };
 
-      baseDatos.agregarMulta(multa);
-
-      const estudiante = baseDatos.obtenerEstudiante(prestamo.estudiante_id)!;
+      await baseDatos.agregarMulta(multa);
+      const estudiante = await baseDatos.obtenerEstudiante(prestamo.estudiante_id);
+      if (!estudiante) {
+        const error = new Error('Estudiante no encontrado') as any;
+        error.cause = 404;
+        throw error;
+      }
       estudiante.multa_pendiente = true;
-      baseDatos.actualizarEstudiante(prestamo.estudiante_id, estudiante);
+      await baseDatos.actualizarEstudiante(prestamo.estudiante_id, estudiante);
     }
 
-    // Actualizar préstamo
     prestamo.fecha_devolucion_real = fechaDevolucion;
     prestamo.estado = EstadoPrestamo.DEVUELTO;
-    baseDatos.actualizarPrestamo(prestamo_id, prestamo);
+    await baseDatos.actualizarPrestamo(prestamo_id, prestamo);
 
-    // Liberar ejemplar
-    const ejemplar = baseDatos.obtenerEjemplar(prestamo.ejemplar_id)!;
+    const ejemplar = await baseDatos.obtenerEjemplar(prestamo.ejemplar_id);
+    if (!ejemplar) {
+      const error = new Error('Ejemplar no encontrado') as any;
+      error.cause = 404;
+      throw error;
+    }
     ejemplar.disponible = true;
-    baseDatos.actualizarEjemplar(prestamo.ejemplar_id, ejemplar);
+    await baseDatos.actualizarEjemplar(prestamo.ejemplar_id, ejemplar);
 
     return prestamo;
   }
 
-  renovarPrestamo(prestamo_id: string): Prestamo {
-    const prestamo = baseDatos.obtenerPrestamo(prestamo_id);
+  async renovarPrestamo(prestamo_id: string): Promise<Prestamo> {
+    const prestamo = await baseDatos.obtenerPrestamo(prestamo_id);
     if (!prestamo) {
       const error = new Error('Préstamo no encontrado') as any;
       error.cause = 404;
       throw error;
     }
 
-    // RN7: Validar que no hay solicitudes pendientes
-    const otrosPrestamos = baseDatos.obtenerPrestamosPorEstudiante(prestamo.estudiante_id)
+    const otrosPrestamos = (await baseDatos.obtenerPrestamosPorEstudiante(prestamo.estudiante_id))
       .filter((p: Prestamo) => p.ejemplar_id === prestamo.ejemplar_id && p.prestamo_id !== prestamo_id);
-    
+
     if (otrosPrestamos.length > 0) {
       const error = new Error('Renovación no permitida') as any;
       error.httpCode = 409;
@@ -251,39 +272,71 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
-    const libro = baseDatos.obtenerLibro(baseDatos.obtenerEjemplar(prestamo.ejemplar_id)!.libro_id)!;
-    const diasPlazo = libro.alta_demanda ? 3 : 15;
-    
+    const ejemplar = await baseDatos.obtenerEjemplar(prestamo.ejemplar_id);
+    const libro = await baseDatos.obtenerLibro(ejemplar!.libro_id);
+    const diasPlazo = libro!.alta_demanda ? 3 : 15;
+
     prestamo.fecha_devolucion_esperada = new Date(prestamo.fecha_devolucion_esperada);
     prestamo.fecha_devolucion_esperada.setDate(
       prestamo.fecha_devolucion_esperada.getDate() + diasPlazo
     );
     prestamo.renovado = true;
 
-    baseDatos.actualizarPrestamo(prestamo_id, prestamo);
+    await baseDatos.actualizarPrestamo(prestamo_id, prestamo);
     return prestamo;
   }
 
   // ========== MULTAS ==========
 
-  obtenerMultasPorEstudiante(estudiante_id: string): Multa[] {
-    const estudiante = baseDatos.obtenerEstudiante(estudiante_id);
+  async obtenerMultasPorEstudiante(estudiante_id: string): Promise<Multa[]> {
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
     if (!estudiante) {
       const error = new Error('Estudiante no encontrado') as any;
       error.cause = 404;
       throw error;
     }
-    return baseDatos.obtenerMultasPorEstudiante(estudiante_id);
+    return await baseDatos.obtenerMultasPorEstudiante(estudiante_id);
+  }
+
+  async pagarMulta(estudiante_id: string, multa_id: string): Promise<Multa> {
+    const multa = await baseDatos.obtenerMulta(multa_id);
+    if (!multa) {
+      const error = new Error('Multa no encontrada') as any;
+      error.cause = 404;
+      throw error;
+    }
+
+    if (multa.estudiante_id !== estudiante_id) {
+      const error = new Error('La multa no pertenece al estudiante') as any;
+      error.httpCode = 400;
+      throw error;
+    }
+
+    multa.estado = EstadoMulta.PAGADA;
+    await baseDatos.actualizarMulta(multa_id, multa);
+
+    const multas = await baseDatos.obtenerMultasPorEstudiante(estudiante_id);
+    const pendientes = multas.filter(m => m.estado === EstadoMulta.PENDIENTE);
+
+    if (pendientes.length === 0) {
+      const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
+      if (estudiante) {
+        estudiante.multa_pendiente = false;
+        await baseDatos.actualizarEstudiante(estudiante_id, estudiante);
+      }
+    }
+
+    return multa;
   }
 
   // ========== HELPERS ==========
 
-  private actualizarEstadoVencimiento(prestamo: Prestamo) {
+  private async actualizarEstadoVencimiento(prestamo: Prestamo) {
     if (prestamo.estado === EstadoPrestamo.ACTIVO && prestamo.fecha_devolucion_real === null) {
       const hoy = new Date();
       if (prestamo.fecha_devolucion_esperada < hoy) {
         prestamo.estado = EstadoPrestamo.VENCIDO;
-        baseDatos.actualizarPrestamo(prestamo.prestamo_id, prestamo);
+        await baseDatos.actualizarPrestamo(prestamo.prestamo_id, prestamo);
       }
     }
   }

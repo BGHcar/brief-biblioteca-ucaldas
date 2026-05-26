@@ -69,6 +69,7 @@ export interface Multa {
 export interface CrearPrestamoDTO {
   estudiante_id: string;
   ejemplar_id: string;
+  fechaPrestamoSimulada?: string; // ISO 8601 opcional para pruebas
 }
 
 export interface DevolverPrestamoDTO {

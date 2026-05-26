@@ -12,26 +12,37 @@ app.use(express.json());
 // Rutas
 app.use('/api', rutas);
 
-// Inicializar datos de ejemplo
-function inicializarDatos() {
-  // Libros
+// Inicializar datos de ejemplo solo si la base de datos está vacía (solo en desarrollo/producción)
+async function inicializarDatos() {
+  // No ejecutar seed en ambiente de pruebas
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+
+  const librosExistentes = await baseDatos.getLibros();
+  if (librosExistentes.length > 0) {
+    return;
+  }
+
+  console.log('📖 Poblando base de datos con catálogo inicial...');
+
   const libros: Libro[] = [
     {
-      libro_id: 'LIB001',
+      libro_id: 'LIB-001',
       titulo: 'Algoritmos en TypeScript',
       autor: 'Donald Knuth',
       sala: 'Tecnología',
-      alta_demanda: true
-    },
-    {
-      libro_id: 'LIB002',
-      titulo: 'Historia de Colombia',
-      autor: 'Carlos Morales',
-      sala: 'Historia',
       alta_demanda: false
     },
     {
-      libro_id: 'LIB003',
+      libro_id: 'LIB-002',
+      titulo: 'Historia de Colombia',
+      autor: 'Carlos Morales',
+      sala: 'Historia',
+      alta_demanda: true
+    },
+    {
+      libro_id: 'LIB-003',
       titulo: 'Cálculo Superior',
       autor: 'James Stewart',
       sala: 'Matemáticas',
@@ -39,22 +50,24 @@ function inicializarDatos() {
     }
   ];
 
-  libros.forEach(libro => baseDatos.agregarLibro(libro));
+  for (const libro of libros) {
+    await baseDatos.agregarLibro(libro);
+  }
 
-  // Ejemplares
   const ejemplares: Ejemplar[] = [
-    { ejemplar_id: 'EJ001', libro_id: 'LIB001', disponible: true },
-    { ejemplar_id: 'EJ002', libro_id: 'LIB001', disponible: true },
-    { ejemplar_id: 'EJ003', libro_id: 'LIB002', disponible: true },
-    { ejemplar_id: 'EJ004', libro_id: 'LIB003', disponible: true }
+    { ejemplar_id: 'EJ-001-01', libro_id: 'LIB-001', disponible: true },
+    { ejemplar_id: 'EJ-001-02', libro_id: 'LIB-001', disponible: true },
+    { ejemplar_id: 'EJ-002-01', libro_id: 'LIB-002', disponible: true },
+    { ejemplar_id: 'EJ-003-01', libro_id: 'LIB-003', disponible: true }
   ];
 
-  ejemplares.forEach(ejemplar => baseDatos.agregarEjemplar(ejemplar));
+  for (const ejemplar of ejemplares) {
+    await baseDatos.agregarEjemplar(ejemplar);
+  }
 
-  // Estudiantes
   const estudiantes: Estudiante[] = [
     {
-      estudiante_id: 'EST001',
+      estudiante_id: 'EST-PRE-01',
       nombre: 'Juan Pérez',
       programa_academico: 'Ingeniería Sistemas',
       semestre: 3,
@@ -62,7 +75,7 @@ function inicializarDatos() {
       multa_pendiente: false
     },
     {
-      estudiante_id: 'EST002',
+      estudiante_id: 'EST-POS-01',
       nombre: 'María González',
       programa_academico: 'Maestría Ingeniería',
       semestre: 2,
@@ -70,7 +83,7 @@ function inicializarDatos() {
       multa_pendiente: false
     },
     {
-      estudiante_id: 'EST003',
+      estudiante_id: 'EST-PRE-02',
       nombre: 'Carlos López',
       programa_academico: 'Ingeniería Industrial',
       semestre: 5,
@@ -79,7 +92,9 @@ function inicializarDatos() {
     }
   ];
 
-  estudiantes.forEach(est => baseDatos.agregarEstudiante(est));
+  for (const estudiante of estudiantes) {
+    await baseDatos.agregarEstudiante(estudiante);
+  }
 }
 
 // Health check
@@ -87,13 +102,26 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Inicializar y arrancar servidor
-inicializarDatos();
+async function main() {
+  await baseDatos.ready;
+  await inicializarDatos();
 
-const server = app.listen(PORT, () => {
-  console.log(`\n🚀 API de Préstamo de Libros arrancada en puerto ${PORT}`);
-  console.log(`📚 Endpoint: http://localhost:${PORT}`);
-  console.log(`💓 Health check: http://localhost:${PORT}/health\n`);
+  app.listen(PORT, () => {
+    const env = process.env.NODE_ENV || 'development';
+    console.log(`\n🚀 API de Préstamo de Libros arrancada en puerto ${PORT} (${env})`);
+    console.log(`📚 Endpoint: http://localhost:${PORT}`);
+    console.log(`💓 Health check: http://localhost:${PORT}/health`);
+    if (env !== 'test') {
+      console.log(`📖 Catálogo: http://localhost:${PORT}/api/libros`);
+      console.log(`➕ Admin POST /api/libros - Agregar libro`);
+      console.log(`➕ Admin POST /api/libros/:libro_id/ejemplares - Agregar ejemplar\n`);
+    }
+  });
+}
+
+main().catch(error => {
+  console.error('Error iniciando la aplicación:', error);
+  process.exit(1);
 });
 
 export default app;
