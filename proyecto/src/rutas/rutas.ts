@@ -107,6 +107,19 @@ router.post('/libros/:libro_id/ejemplares', async (req: Request, res: Response) 
 // ========== PRESTAMOS ==========
 
 /**
+ * GET /prestamos
+ * Listar todos los préstamos
+ */
+router.get('/prestamos', async (req: Request, res: Response) => {
+  try {
+    const prestamos = await baseDatos.getPrestamos();
+    res.status(200).json(prestamos);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /prestamos
  * Crear nuevo préstamo
  * Body: { estudiante_id, ejemplar_id }
@@ -193,6 +206,50 @@ router.post('/prestamos/:prestamo_id/renovar', async (req: Request, res: Respons
 });
 
 // ========== ESTUDIANTES ==========
+
+/**
+ * GET /estudiantes
+ * Listar todos los estudiantes
+ */
+router.get('/estudiantes', async (req: Request, res: Response) => {
+  try {
+    const estudiantes = await baseDatos.getEstudiantes();
+    res.status(200).json(estudiantes);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /estudiantes
+ * (Admin) Crear nuevo estudiante
+ * Body: { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante }
+ */
+router.post('/estudiantes', async (req: Request, res: Response) => {
+  try {
+    const { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante } = req.body;
+
+    if (!estudiante_id || !nombre || !tipo_estudiante) {
+      return res.status(400).json({
+        error: 'estudiante_id, nombre y tipo_estudiante son requeridos'
+      });
+    }
+
+    const estudiante = {
+      estudiante_id,
+      nombre,
+      programa_academico: programa_academico || '',
+      semestre: semestre || 1,
+      tipo_estudiante,
+      multa_pendiente: false
+    };
+
+    await baseDatos.agregarEstudiante(estudiante);
+    res.status(201).json({ mensaje: 'Estudiante creado exitosamente', estudiante });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /**
  * GET /estudiantes/:estudiante_id
