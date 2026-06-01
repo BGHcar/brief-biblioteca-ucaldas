@@ -1,6 +1,8 @@
 import { servicioPrestamoLibros } from '../src/servicios/servicio-prestamo-libros';
 import { baseDatos } from '../src/base-datos/base-datos';
 import { Libro, Ejemplar, Estudiante, TipoEstudiante, EstadoPrestamo } from '../src/modelos/tipos';
+import { describe, test, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
 
 describe('Servicio de Préstamo de Libros', () => {
 
@@ -56,8 +58,10 @@ describe('Servicio de Préstamo de Libros', () => {
       };
       await baseDatos.agregarEjemplar(ej4);
 
-      await expect(servicioPrestamoLibros.crearPrestamo({ estudiante_id: 'EST001', ejemplar_id: 'EJ004' }))
-        .rejects.toThrow('Límite de préstamos alcanzado');
+      await assert.rejects(
+        () => servicioPrestamoLibros.crearPrestamo({ estudiante_id: 'EST001', ejemplar_id: 'EJ004' }),
+        /Límite de préstamos alcanzado/
+      );
     });
 
     test('Posgrado puede prestar máximo 5 libros', async () => {
@@ -88,8 +92,10 @@ describe('Servicio de Préstamo de Libros', () => {
       };
       await baseDatos.agregarEjemplar(ej6);
 
-      await expect(servicioPrestamoLibros.crearPrestamo({ estudiante_id: 'EST001', ejemplar_id: 'EJ006' }))
-        .rejects.toThrow('Límite de préstamos alcanzado');
+      await assert.rejects(
+        () => servicioPrestamoLibros.crearPrestamo({ estudiante_id: 'EST001', ejemplar_id: 'EJ006' }),
+        /Límite de préstamos alcanzado/
+      );
     });
   });
 
@@ -106,7 +112,7 @@ describe('Servicio de Préstamo de Libros', () => {
         / (1000 * 60 * 60 * 24)
       );
 
-      expect(diasCalculados).toBe(diasEsperados);
+      assert.equal(diasCalculados, diasEsperados);
     });
 
     test('Libro de alta demanda: plazo 3 días', async () => {
@@ -128,7 +134,7 @@ describe('Servicio de Préstamo de Libros', () => {
         / (1000 * 60 * 60 * 24)
       );
 
-      expect(diasCalculados).toBe(diasEsperados);
+      assert.equal(diasCalculados, diasEsperados);
     });
   });
 
@@ -141,10 +147,13 @@ describe('Servicio de Préstamo de Libros', () => {
       ejemplar.disponible = false;
       await baseDatos.actualizarEjemplar('EJ001', ejemplar);
 
-      await expect(servicioPrestamoLibros.crearPrestamo({
-        estudiante_id: 'EST001',
-        ejemplar_id: 'EJ001'
-      })).rejects.toThrow('Ejemplar no disponible');
+      await assert.rejects(
+        () => servicioPrestamoLibros.crearPrestamo({
+          estudiante_id: 'EST001',
+          ejemplar_id: 'EJ001'
+        }),
+        /Ejemplar no disponible/
+      );
     });
 
     test('Ejemplar se marca como no disponible después del préstamo', async () => {
@@ -157,7 +166,7 @@ describe('Servicio de Préstamo de Libros', () => {
       if (!ejemplar) {
         throw new Error('Ejemplar de prueba no encontrado');
       }
-      expect(ejemplar.disponible).toBe(false);
+      assert.equal(ejemplar.disponible, false);
     });
   });
 
@@ -176,9 +185,9 @@ describe('Servicio de Préstamo de Libros', () => {
       });
 
       const multas = await baseDatos.obtenerMultasPorEstudiante('EST001');
-      expect(multas.length).toBe(1);
-      expect(multas[0].monto).toBe(5 * 2000);
-      expect(multas[0].dias_retraso).toBe(5);
+      assert.equal(multas.length, 1);
+      assert.equal(multas[0].monto, 5 * 2000);
+      assert.equal(multas[0].dias_retraso, 5);
     });
 
     test('No se calcula multa si devuelve a tiempo', async () => {
@@ -195,7 +204,7 @@ describe('Servicio de Préstamo de Libros', () => {
       });
 
       const multas = await baseDatos.obtenerMultasPorEstudiante('EST001');
-      expect(multas.length).toBe(0);
+      assert.equal(multas.length, 0);
     });
   });
 
@@ -220,10 +229,13 @@ describe('Servicio de Préstamo de Libros', () => {
       };
       await baseDatos.agregarEjemplar(ej2);
 
-      await expect(servicioPrestamoLibros.crearPrestamo({
-        estudiante_id: 'EST001',
-        ejemplar_id: 'EJ002'
-      })).rejects.toThrow('Tiene multas pendientes');
+      await assert.rejects(
+        () => servicioPrestamoLibros.crearPrestamo({
+          estudiante_id: 'EST001',
+          ejemplar_id: 'EJ002'
+        }),
+        /Tiene multas pendientes/
+      );
     });
   });
 
@@ -239,7 +251,7 @@ describe('Servicio de Préstamo de Libros', () => {
       await baseDatos.actualizarPrestamo(prestamo.prestamo_id, prestamo);
 
       const prestamoObtenido = await servicioPrestamoLibros.obtenerPrestamo(prestamo.prestamo_id);
-      expect(prestamoObtenido.estado).toBe(EstadoPrestamo.VENCIDO);
+      assert.equal(prestamoObtenido.estado, EstadoPrestamo.VENCIDO);
     });
   });
 
@@ -250,23 +262,23 @@ describe('Servicio de Préstamo de Libros', () => {
         ejemplar_id: 'EJ001'
       });
 
-      expect(prestamo.estado).toBe(EstadoPrestamo.ACTIVO);
+      assert.equal(prestamo.estado, EstadoPrestamo.ACTIVO);
 
       const prestamoObtenido = await servicioPrestamoLibros.obtenerPrestamo(prestamo.prestamo_id);
-      expect(prestamoObtenido.prestamo_id).toBe(prestamo.prestamo_id);
+      assert.equal(prestamoObtenido.prestamo_id, prestamo.prestamo_id);
 
       const prestamoDevuelto = await servicioPrestamoLibros.devolverPrestamo(
         prestamo.prestamo_id,
         { fecha_devolucion_real: new Date().toISOString() }
       );
 
-      expect(prestamoDevuelto.estado).toBe(EstadoPrestamo.DEVUELTO);
+      assert.equal(prestamoDevuelto.estado, EstadoPrestamo.DEVUELTO);
 
       const ejemplar = await baseDatos.obtenerEjemplar('EJ001');
       if (!ejemplar) {
         throw new Error('Ejemplar de prueba no encontrado');
       }
-      expect(ejemplar.disponible).toBe(true);
+      assert.equal(ejemplar.disponible, true);
     });
   });
 

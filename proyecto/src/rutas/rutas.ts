@@ -223,15 +223,18 @@ router.get('/estudiantes', async (req: Request, res: Response) => {
 /**
  * POST /estudiantes
  * (Admin) Crear nuevo estudiante
- * Body: { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante }
+ * Body: { estudiante_id (o id), nombre, programa_academico, semestre, tipo_estudiante (o tipo) }
  */
 router.post('/estudiantes', async (req: Request, res: Response) => {
   try {
-    const { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante } = req.body;
+    // Aceptar aliases comunes
+    const estudiante_id = req.body.estudiante_id || req.body.id;
+    const tipo_estudiante = req.body.tipo_estudiante || req.body.tipo;
+    const { nombre, programa_academico, semestre } = req.body;
 
     if (!estudiante_id || !nombre || !tipo_estudiante) {
       return res.status(400).json({
-        error: 'estudiante_id, nombre y tipo_estudiante son requeridos'
+        error: 'Requeridos: estudiante_id (o id), nombre, tipo_estudiante (o tipo)'
       });
     }
 
