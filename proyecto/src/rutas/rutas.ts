@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { servicioPrestamoLibros } from '../servicios/servicio-prestamo-libros';
 import { baseDatos } from '../base-datos/base-datos';
-import { CrearPrestamoDTO, DevolverPrestamoDTO } from '../modelos/tipos';
+import { CrearPrestamoDTO, DevolverPrestamoDTO, CrearReservaDTO } from '../modelos/tipos';
 
 const router = Router();
 
@@ -107,6 +107,19 @@ router.post('/libros/:libro_id/ejemplares', async (req: Request, res: Response) 
 // ========== PRESTAMOS ==========
 
 /**
+ * GET /prestamos
+ * Listar todos los préstamos
+ */
+router.get('/prestamos', async (req: Request, res: Response) => {
+  try {
+    const prestamos = await baseDatos.getPrestamos();
+    res.status(200).json(prestamos);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /prestamos
  * Crear nuevo préstamo
  * Body: { estudiante_id, ejemplar_id }
@@ -195,6 +208,50 @@ router.post('/prestamos/:prestamo_id/renovar', async (req: Request, res: Respons
 // ========== ESTUDIANTES ==========
 
 /**
+ * GET /estudiantes
+ * Listar todos los estudiantes
+ */
+router.get('/estudiantes', async (req: Request, res: Response) => {
+  try {
+    const estudiantes = await baseDatos.getEstudiantes();
+    res.status(200).json(estudiantes);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /estudiantes
+ * (Admin) Crear nuevo estudiante
+ * Body: { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante }
+ */
+router.post('/estudiantes', async (req: Request, res: Response) => {
+  try {
+    const { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante } = req.body;
+
+    if (!estudiante_id || !nombre || !tipo_estudiante) {
+      return res.status(400).json({
+        error: 'estudiante_id, nombre y tipo_estudiante son requeridos'
+      });
+    }
+
+    const estudiante = {
+      estudiante_id,
+      nombre,
+      programa_academico: programa_academico || '',
+      semestre: semestre || 1,
+      tipo_estudiante,
+      multa_pendiente: false
+    };
+
+    await baseDatos.agregarEstudiante(estudiante);
+    res.status(201).json({ mensaje: 'Estudiante creado exitosamente', estudiante });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /estudiantes/:estudiante_id
  * Información del estudiante
  */
@@ -256,6 +313,67 @@ router.post('/estudiantes/:estudiante_id/multas/:multa_id/pagar', async (req: Re
     const { estudiante_id, multa_id } = req.params;
     const multa = await servicioPrestamoLibros.pagarMulta(estudiante_id, multa_id);
     res.status(200).json(multa);
+  } catch (error: any) {
+    const httpCode = error.httpCode || error.cause || 500;
+    res.status(httpCode).json({ error: error.error || error.message });
+  }
+});
+
+// ========== RESERVAS ==========
+
+/**
+ * POST /reservas
+ * RN9: Crear una nueva reserva
+ * Body: { estudiante_id, ejemplar_id }
+ */
+router.post('/reservas', async (req: Request, res: Response) => {
+  try {
+    const { estudiante_id, ejemplar_id } = req.body;
+
+    if (!estudiante_id || !ejemplar_id) {
+      return res.status(400).json({
+        error: 'estudiante_id y ejemplar_id son requeridos'
+      });
+    }
+
+    const datos: CrearReservaDTO = { estudiante_id, ejemplar_id };
+    const reserva = await servicioPrestamoLibros.crearReserva(datos);
+    res.status(201).json(reserva);
+  } catch (error: any) {
+    const httpCode = error.httpCode || error.cause || 500;
+    res.status(httpCode).json({ error: error.error || error.message });
+  }
+});
+
+/**
+ * GET /reservas/:reserva_id
+ * Obtener detalles de una reserva
+ */
+router.get('/reservas/:reserva_id', async (req: Request, res: Response) => {
+  try {
+    const { reserva_id } = req.params;
+    const reserva = await baseDatos.obtenerReserva(reserva_id);
+    if (!reserva) {
+      return res.status(404).json({ error: 'Reserva no encontrada' });
+    }
+    res.status(200).json(reserva);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /reservas/:reserva_id/verificar-vencimiento
+ * RN13: Verificar y procesar vencimiento de reserva (>24h)
+ * Body (opcional): { fecha_actual_simulada }
+ */
+router.post('/reservas/:reserva_id/verificar-vencimiento', async (req: Request, res: Response) => {
+  try {
+    const { reserva_id } = req.params;
+    const { fecha_actual_simulada } = req.body;
+    
+    const reserva = await servicioPrestamoLibros.verificarVencimientoReserva(reserva_id, fecha_actual_simulada);
+    res.status(200).json(reserva);
   } catch (error: any) {
     const httpCode = error.httpCode || error.cause || 500;
     res.status(httpCode).json({ error: error.error || error.message });

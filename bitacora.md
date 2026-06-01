@@ -3,7 +3,62 @@
 **Autores:** Bryan Cartagena Hincapie, Jeison Steven Franco Chilo  
 **Fecha de inicio:** 12 de mayo de 2026  
 **Fecha de cierre:** 26 de mayo de 2026  
-**Etapa final:** 4 (Implementación de Reglas de Negocio y Auditoría)
+**Última actualización:** 31 de mayo de 2026 — Completación de Endpoints para Taller Ollama
+**Etapa final:** 5 (Taller de QA con Chatbot Ollama - Preparación)
+
+---
+
+## 0. Actualización Sprint Final - 31 de Mayo de 2026
+
+### Completación de Endpoints Faltantes para Taller Ollama
+
+**Objetivos realizados:**
+✅ Agregar endpoints faltantes en `proyecto/src/rutas/rutas.ts`  
+✅ Actualizar SYSTEM_PROMPT del chatbot con documentación completa de endpoints  
+✅ Corregir métodos HTTP (PUT → POST) en especificaciones  
+✅ Compilación TypeScript sin errores  
+
+**Endpoints agregados a `rutas.ts`:**
+
+1. **GET /api/estudiantes** (línea 198)
+   - Listado de todos los estudiantes
+   - Implementación: `baseDatos.getEstudiantes()`
+   - Severidad: Crítica para filtrado global
+
+2. **POST /api/estudiantes** (línea 207)
+   - Crear nuevo estudiante
+   - Body requerido: `{ estudiante_id, nombre, tipo_estudiante }`
+   - Status: 201 Created
+   - Campos opcionales: `programa_academico`, `semestre`
+
+3. **GET /api/prestamos** (línea 118)
+   - Listado de todos los préstamos
+   - Implementación: `baseDatos.getPrestamos()`
+   - Nota: Antes solo existía POST /prestamos
+
+**Endpoints documentados en SYSTEM_PROMPT del chatbot.js:**
+
+Reorganización en secciones:
+- **LIBROS:** GET/POST libros, GET libro específico, POST ejemplares
+- **ESTUDIANTES:** 7 endpoints (listar, crear, obtener, historial, multas, pagar)
+- **PRÉSTAMOS:** 5 endpoints (listar, crear, obtener, devolver, renovar)
+
+**Correcciones en métodos HTTP:**
+- `PUT /api/prestamos/:id/devolucion` → **POST /api/prestamos/:prestamo_id/devolver**
+- `PUT /api/prestamos/:id/renovar` → **POST /api/prestamos/:prestamo_id/renovar**
+
+Nota: Los endpoints reales en `rutas.ts` ya usaban POST, la documentación anterior estaba desactualizada.
+
+**Validación:**
+```bash
+npm run build  # ✅ TypeScript compila sin errores
+npm run test   # ✅ 11/11 tests unitarios pasan
+```
+
+**Impacto:** El chatbot Ollama ahora puede:
+- Documentar correctamente todos los endpoints
+- Generar comandos curl sintácticamente correctos
+- Referirse a campos `:prestamo_id`, `:estudiante_id` en lugar de genéricos `:id`
 
 ---
 

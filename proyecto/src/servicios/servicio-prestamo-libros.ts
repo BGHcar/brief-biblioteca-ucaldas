@@ -1,9 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { baseDatos } from '../base-datos/base-datos';
 import {
-  Libro, Ejemplar, Estudiante, Prestamo, Multa,
-  CrearPrestamoDTO, DevolverPrestamoDTO, TipoEstudiante,
-  EstadoPrestamo, EstadoMulta
+  Libro, Ejemplar, Estudiante, Prestamo, Multa, Reserva,
+  CrearPrestamoDTO, DevolverPrestamoDTO, CrearReservaDTO, TipoEstudiante,
+  EstadoPrestamo, EstadoMulta, EstadoReserva
 } from '../modelos/tipos';
 
 class ServicioPrestamoLibros {
@@ -114,6 +114,7 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
+    // RN4: Verificar multas pendientes
     const multasPendientes = (await baseDatos.obtenerMultasPorEstudiante(estudiante_id))
       .filter(m => m.estado === EstadoMulta.PENDIENTE);
     if (multasPendientes.length > 0) {
@@ -121,6 +122,48 @@ class ServicioPrestamoLibros {
       error.httpCode = 409;
       error.error = 'multas_pendientes';
       error.multas = multasPendientes;
+      throw error;
+    }
+
+    // RN11: Validar límite acumulado de multas ($50.000 COP)
+    const todasLasMultas = await baseDatos.obtenerMultasPorEstudiante(estudiante_id);
+    const multasAcumuladas = todasLasMultas.reduce((sum, m) => sum + m.monto, 0);
+    if (multasAcumuladas >= 50000) {
+      const error = new Error('Deuda acumulada crítica') as any;
+      error.httpCode = 409;
+      error.error = 'deuda_acumulada_critica';
+      error.monto_acumulado = multasAcumuladas;
+      error.tope_critico = 50000;
+      throw error;
+    }
+
+    // RN12: Validar que pregrado no acceda a Sala de Reserva
+    if (libro.sala === 'Sala de Reserva' && estudiante.tipo_estudiante === TipoEstudiante.PREGRADO) {
+      const error = new Error('Acceso a Sala de Reserva restringido') as any;
+      error.httpCode = 403;
+      error.error = 'acceso_sala_restringido';
+      error.tipo_estudiante_requerido = 'posgrado';
+      error.tipo_estudiante_actual = estudiante.tipo_estudiante;
+      throw error;
+    }
+
+    // RN14: Validar horario operativo (08:00-18:00, lunes a viernes)
+    let fechaParaValidarHorario = fechaReferencia;
+    if (datos.fecha_actual_simulada) {
+      const d = new Date(datos.fecha_actual_simulada);
+      if (!isNaN(d.getTime())) {
+        fechaParaValidarHorario = d;
+      }
+    }
+    const horaValidacion = fechaParaValidarHorario.getHours();
+    const diaValidacion = fechaParaValidarHorario.getDay(); // 0=domingo, 6=sábado
+    if (horaValidacion < 8 || horaValidacion >= 18 || diaValidacion === 0 || diaValidacion === 6) {
+      const error = new Error('Operación fuera de horario operativo') as any;
+      error.httpCode = 409;
+      error.error = 'operacion_fuera_de_horario';
+      error.horario_operativo = '08:00-18:00 L-V';
+      error.hora_solicitud = horaValidacion.toString().padStart(2, '0') + ':00';
+      error.estado = 'fuera_de_horario';
       throw error;
     }
 
@@ -157,7 +200,7 @@ class ServicioPrestamoLibros {
       fecha_devolucion_esperada: fechaDevolucionEsperada,
       fecha_devolucion_real: null,
       estado: EstadoPrestamo.ACTIVO,
-      renovado: false
+      renovaciones_realizadas: 0
     };
 
     ejemplar.disponible = false;
@@ -229,7 +272,12 @@ class ServicioPrestamoLibros {
         (fechaDevolucion.getTime() - prestamo.fecha_devolucion_esperada.getTime())
         / (1000 * 60 * 60 * 24)
       );
-      const monto = diasRetraso * 2000;
+      let monto = diasRetraso * 2000;
+
+      // RN15: Aplicar amnistía si el código de campaña es válido
+      if (datos.codigo_campana_amnistia === 'AMNISTIA_2026') {
+        monto = 0; // Amnistía aplica descuento del 100% para esta campaña
+      }
 
       const multa: Multa = {
         multa_id: uuidv4(),
@@ -248,8 +296,11 @@ class ServicioPrestamoLibros {
         error.cause = 404;
         throw error;
       }
-      estudiante.multa_pendiente = true;
-      await baseDatos.actualizarEstudiante(prestamo.estudiante_id, estudiante);
+      // Solo marcar multa pendiente si el monto es > 0
+      if (monto > 0) {
+        estudiante.multa_pendiente = true;
+        await baseDatos.actualizarEstudiante(prestamo.estudiante_id, estudiante);
+      }
     }
 
     prestamo.fecha_devolucion_real = fechaDevolucion;
@@ -287,6 +338,15 @@ class ServicioPrestamoLibros {
       throw error;
     }
 
+    // RN10: Validar máximo 2 renovaciones consecutivas
+    if (prestamo.renovaciones_realizadas >= 2) {
+      const error = new Error('Límite de renovaciones alcanzado') as any;
+      error.httpCode = 409;
+      error.error = 'limite_renovaciones_alcanzado';
+      error.renovaciones_realizadas = prestamo.renovaciones_realizadas;
+      throw error;
+    }
+
     const ejemplar = await baseDatos.obtenerEjemplar(prestamo.ejemplar_id);
     const libro = await baseDatos.obtenerLibro(ejemplar!.libro_id);
     const diasPlazo = libro!.alta_demanda ? 3 : 15;
@@ -295,7 +355,7 @@ class ServicioPrestamoLibros {
     prestamo.fecha_devolucion_esperada.setDate(
       prestamo.fecha_devolucion_esperada.getDate() + diasPlazo
     );
-    prestamo.renovado = true;
+    prestamo.renovaciones_realizadas += 1;
 
     await baseDatos.actualizarPrestamo(prestamo_id, prestamo);
     return prestamo;
@@ -354,6 +414,99 @@ class ServicioPrestamoLibros {
         await baseDatos.actualizarPrestamo(prestamo.prestamo_id, prestamo);
       }
     }
+  }
+
+  // ========== RESERVAS ==========
+
+  async crearReserva(datos: CrearReservaDTO): Promise<Reserva> {
+    const { estudiante_id, ejemplar_id } = datos;
+
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
+    if (!estudiante) {
+      const error = new Error('Estudiante no encontrado') as any;
+      error.cause = 404;
+      throw error;
+    }
+
+    const ejemplar = await baseDatos.obtenerEjemplar(ejemplar_id);
+    if (!ejemplar) {
+      const error = new Error('Ejemplar no encontrado') as any;
+      error.cause = 404;
+      throw error;
+    }
+
+    // RN9: Validar duplicidad de reserva
+    const reservasExistentes = await baseDatos.obtenerReservasPorEstudiante(estudiante_id);
+    const yaEstaReservado = reservasExistentes.some(r => r.ejemplar_id === ejemplar_id);
+    if (yaEstaReservado) {
+      const error = new Error('El estudiante ya tiene una reserva activa para este ejemplar') as any;
+      error.httpCode = 409;
+      error.error = 'duplicidad_reserva';
+      throw error;
+    }
+
+    const reserva: Reserva = {
+      reserva_id: uuidv4(),
+      estudiante_id,
+      ejemplar_id,
+      fecha_reserva: new Date(),
+      estado: EstadoReserva.PENDIENTE
+    };
+
+    await baseDatos.agregarReserva(reserva);
+    return reserva;
+  }
+
+  async obtenerReservasPorEstudianteServicio(estudiante_id: string): Promise<Reserva[]> {
+    const estudiante = await baseDatos.obtenerEstudiante(estudiante_id);
+    if (!estudiante) {
+      const error = new Error('Estudiante no encontrado') as any;
+      error.cause = 404;
+      throw error;
+    }
+
+    return await baseDatos.obtenerReservasPorEstudiante(estudiante_id);
+  }
+
+  async verificarVencimientoReserva(reserva_id: string, fecha_actual_simulada?: string): Promise<Reserva> {
+    const reserva = await baseDatos.obtenerReserva(reserva_id);
+    if (!reserva) {
+      const error = new Error('Reserva no encontrada') as any;
+      error.cause = 404;
+      throw error;
+    }
+
+    // RN13: Verificar si la reserva venció (> 24 horas)
+    let fechaActual = new Date();
+    if (fecha_actual_simulada) {
+      const d = new Date(fecha_actual_simulada);
+      if (!isNaN(d.getTime())) {
+        fechaActual = d;
+      }
+    }
+
+    const horasTranscurridas = (fechaActual.getTime() - reserva.fecha_reserva.getTime()) / (1000 * 60 * 60);
+    
+    if (horasTranscurridas > 24 && reserva.estado === EstadoReserva.PENDIENTE) {
+      reserva.estado = EstadoReserva.VENCIDA;
+      await baseDatos.actualizarReserva(reserva_id, reserva);
+
+      // Liberar el ejemplar
+      const ejemplar = await baseDatos.obtenerEjemplar(reserva.ejemplar_id);
+      if (ejemplar) {
+        ejemplar.disponible = true;
+        await baseDatos.actualizarEjemplar(reserva.ejemplar_id, ejemplar);
+      }
+
+      const error = new Error('La reserva expiró por inactividad') as any;
+      error.httpCode = 409;
+      error.error = 'reserva_expirada';
+      error.horas_transcurridas = horasTranscurridas;
+      error.horas_permitidas = 24;
+      throw error;
+    }
+
+    return reserva;
   }
 }
 

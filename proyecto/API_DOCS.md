@@ -1,106 +1,345 @@
-**API Docs**
+# API Documentation — Biblioteca UCaldas
 
-- **Base URL:** `/api`
+**Base URL:** `http://localhost:3000/api`
 
-**Endpoints principales**
+---
 
-## 📚 Catálogo (Libros)
+## 1. Resumen de módulos
 
-- **GET /libros**: Lista todos los libros.
-  - Query: `disponibles=true` (opcional) — filtra solo libros con ejemplares disponibles.
-  - Respuesta 200: array de `Libro`.
+### Catálogo de Libros y Ejemplares
+- `GET /api/libros`
+- `POST /api/libros`
+- `GET /api/libros/:libro_id`
+- `POST /api/libros/:libro_id/ejemplares`
 
-- **POST /libros**: **(Admin)** Agregar un nuevo libro al catálogo.
-  - Body JSON:
-    - `libro_id` (string, requerido)
-    - `titulo` (string, requerido)
-    - `autor` (string, requerido)
-    - `sala` (string, requerido)
-    - `alta_demanda` (boolean, opcional, default: false)
-  - 201: `{ mensaje: 'Libro agregado exitosamente', libro: Libro }`
-  - 400: `{ error: 'libro_id, titulo, autor y sala son requeridos' }`
+### Gestión de Estudiantes
+- `GET /api/estudiantes/:estudiante_id`
+- `GET /api/estudiantes/:estudiante_id/prestamos`
+- `GET /api/estudiantes/:estudiante_id/historial`
+- `GET /api/estudiantes/:estudiante_id/multas`
+- `POST /api/estudiantes/:estudiante_id/multas/:multa_id/pagar`
 
-- **GET /libros/:libro_id**: Detalle de un libro.
-  - 200: `Libro`
-  - 404: `{ error: 'Libro LIB-XXX no encontrado' }`
+### Operaciones de Préstamos
+- `POST /api/prestamos`
+- `GET /api/prestamos/:prestamo_id`
+- `POST /api/prestamos/:prestamo_id/devolver`
+- `POST /api/prestamos/:prestamo_id/renovar`
 
-## 📖 Ejemplares
+---
 
-- **POST /ejemplares**: **(Admin)** Agregar un nuevo ejemplar al catálogo.
-  - Body JSON:
-    - `ejemplar_id` (string, requerido)
-    - `libro_id` (string, requerido)
-    - `disponible` (boolean, opcional, default: true)
-  - 201: `{ mensaje: 'Ejemplar agregado exitosamente', ejemplar: Ejemplar }`
-  - 400: `{ error: 'ejemplar_id y libro_id son requeridos' }`
-  - 404: `{ error: 'Libro {libro_id} no encontrado' }`
+## 2. Catálogo de Libros
 
-- **POST /prestamos**: Crear nuevo préstamo.
-  - Body JSON:
-    - `estudiante_id` (string, requerido)
-    - `ejemplar_id` (string, requerido)
-    - `fechaPrestamoSimulada` (string ISO 8601, opcional) — si se suministra, la fecha del préstamo se guardará usando este valor (útil para pruebas).
-  - 201: `Prestamo` (objeto)
-  - 400: `{ error: 'estudiante_id y ejemplar_id son requeridos' }` o `{ error: 'fechaPrestamoSimulada inválida' }`
-  - 404: cuando estudiante/ejemplar/libro no existen
-  - 409: conflictos de reglas de negocio — ejemplo:
-    - `{ error: 'limite_prestamos_alcanzado', limite: 3, actuales: 3 }`
-    - `{ error: 'prestamo_vencido_sin_devolver', prestamo_id: '...' }`
-    - `{ error: 'multas_pendientes', multas: [...] }`
+### `GET /api/libros`
+Obtiene la lista de libros del catálogo.
 
-- **GET /prestamos/:prestamo_id**: Obtener préstamo.
-  - 200: `Prestamo`
-  - 404: `{ error: 'Préstamo no encontrado' }`
+- Query opcional:
+  - `disponibles=true` — retorna solo libros con al menos un ejemplar disponible.
 
-- **POST /prestamos/:prestamo_id/devolver**: Registrar devolución.
-  - Body JSON: `{ fecha_devolucion_real: string (ISO 8601) }` (requerido)
-  - 200: `Prestamo` actualizado (puede generar multa)
-  - 400: `{ error: 'fecha_devolucion_real es requerida' }`
-  - 404: préstamo no encontrado
+**Respuesta:** `200 OK`
+```json
+[{
+  "libro_id": "LIB-001",
+  "titulo": "Algoritmos en TypeScript",
+  "autor": "Donald Knuth",
+  "sala": "Tecnología",
+  "alta_demanda": false
+}]
+```
 
-- **POST /prestamos/:prestamo_id/renovar**: Renovar préstamo.
-  - 200: `Prestamo` actualizado
-  - 409: `{ error: 'renovacion_no_permitida', razon: 'otro_estudiante_espera_libro' }`
+### `POST /api/libros`
+Agrega un nuevo libro al catálogo.
 
-- **GET /estudiantes/:estudiante_id**: Info estudiante.
-  - 200: `Estudiante`
-  - 404: `{ error: 'Estudiante no encontrado' }`
+**Body JSON:**
+```json
+{
+  "libro_id": "LIB-004",
+  "titulo": "Base de Datos",
+  "autor": "E. Codd",
+  "sala": "Sistemas",
+  "alta_demanda": true
+}
+```
 
-- **GET /estudiantes/:estudiante_id/prestamos**: Préstamos vigentes del estudiante.
-  - 200: array `Prestamo` activos
+**Respuestas:**
+- `201 Created`
+- `400 Bad Request` si faltan campos obligatorios.
 
-- **GET /estudiantes/:estudiante_id/historial**: Historial completo.
-  - 200: array `Prestamo`
+### `GET /api/libros/:libro_id`
+Recupera los datos de un libro por su identificador.
 
-- **GET /estudiantes/:estudiante_id/multas**: Listar multas.
-  - 200: array `Multa`
+**Parámetro:**
+- `:libro_id` — identificador del libro.
 
-- **POST /estudiantes/:estudiante_id/multas/:multa_id/pagar**: Marcar multa como pagada.
-  - 200: `Multa` actualizada (estado: `pagada`)
-  - 400: `{ error: 'La multa no pertenece al estudiante' }`
-  - 404: `{ error: 'Multa no encontrada' }`
+**Respuestas:**
+- `200 OK`
+- `404 Not Found` si el libro no existe.
 
-**Modelos (resumen)**
-- `Libro`: { libro_id, titulo, autor, sala, alta_demanda }
-- `Ejemplar`: { ejemplar_id, libro_id, disponible }
-- `Estudiante`: { estudiante_id, nombre, programa_academico, semestre, tipo_estudiante, multa_pendiente }
-- `Prestamo`: { prestamo_id, estudiante_id, ejemplar_id, fecha_prestamo, fecha_devolucion_esperada, fecha_devolucion_real, estado, renovado }
-- `Multa`: { multa_id, estudiante_id, prestamo_id, monto, dias_retraso, estado, fecha_calculo }
+---
 
-**Códigos de estado y errores**
-- `400 Bad Request`: Datos faltantes o formato inválido.
-- `404 Not Found`: Recurso no existe en la base de datos.
-- `409 Conflict`: Violación de regla negocio (límite de préstamos, multas pendientes, préstamos vencidos, renovación no permitida).
+## 3. Ejemplares
 
-**Notas**
-- La creación de préstamo acepta `fechaPrestamoSimulada` (ISO) para pruebas que necesitan simular vencimientos o devoluciones en fechas pasadas.
-- La base de datos SQLite se guarda en `proyecto/biblioteca.db`. Para inicializar con el seed predefinido, ejecutar el script `proyecto/sql/init.sql` con un cliente SQLite.
+### `POST /api/libros/:libro_id/ejemplares`
+Agrega un nuevo ejemplar a un libro existente.
 
-**Inicialización Automática del Catálogo**
-- Al ejecutar `npm run dev`, si la base de datos está vacía, se carga automáticamente el catálogo de ejemplo con:
-  - 3 libros (LIB001, LIB002, LIB003)
-  - 5 ejemplares distribuidos (EJ001-EJ005)
-  - 3 estudiantes de prueba (EST001-EST003)
-- Este comportamiento **solo ocurre en desarrollo** (`NODE_ENV !== 'test'`). 
-- Durante pruebas unitarias (`npm test`), se usa una BD en memoria sin seed automático.
-- Puede agregar más libros/ejemplares dinámicamente usando los endpoints `POST /libros` y `POST /ejemplares`.
+**Parámetro:**
+- `:libro_id` — identificador del libro al que pertenece el ejemplar.
+
+**Body JSON:**
+```json
+{
+  "ejemplar_id": "EJ-001-03",
+  "disponible": true
+}
+```
+
+**Respuestas:**
+- `201 Created`
+- `400 Bad Request` si falta `ejemplar_id`.
+- `404 Not Found` si el libro no existe.
+
+---
+
+## 4. Operaciones de Préstamos
+
+### `POST /api/prestamos`
+Crea un nuevo préstamo y aplica las reglas de negocio core.
+
+**Body JSON:**
+```json
+{
+  "estudiante_id": "EST-PRE-01",
+  "ejemplar_id": "EJ-001-01",
+  "fechaPrestamoSimulada": "2026-05-20T10:00:00.000Z"
+}
+```
+
+**Campos:**
+- `estudiante_id` — ID del estudiante que solicita el préstamo.
+- `ejemplar_id` — ID del ejemplar a prestar.
+- `fechaPrestamoSimulada` — fecha ISO opcional para simular la fecha de préstamo.
+
+**Reglas de negocio relevantes:**
+- RN1: pregrado máximo 3 préstamos activos.
+- RN2: posgrado máximo 5 préstamos activos.
+- RN3: no se permite préstamo si el estudiante tiene un préstamo activo vencido.
+- RN5: no se permite prestar un ejemplar que ya está ocupado.
+- RN6: libros de alta demanda tienen plazo de 3 días; normales tienen 15 días.
+
+**Respuestas:**
+- `201 Created` con el objeto `Prestamo`.
+- `400 Bad Request` si falta un campo o `fechaPrestamoSimulada` es inválida.
+- `404 Not Found` si estudiante, ejemplar o libro no existen.
+- `409 Conflict` si se viola una regla de negocio.
+
+### `GET /api/prestamos/:prestamo_id`
+Obtiene los detalles de un préstamo específico.
+
+**Respuestas:**
+- `200 OK`
+- `404 Not Found` si el préstamo no existe.
+
+### `POST /api/prestamos/:prestamo_id/devolver`
+Registra la devolución de un ejemplar.
+
+**Body JSON:**
+```json
+{
+  "fecha_devolucion_real": "2026-06-01T16:00:00.000Z"
+}
+```
+
+**Respuestas:**
+- `200 OK` con el préstamo actualizado.
+- `400 Bad Request` si falta `fecha_devolucion_real` o el formato es inválido.
+- `404 Not Found` si el préstamo no existe.
+
+### `POST /api/prestamos/:prestamo_id/renovar`
+Renueva un préstamo vigente.
+
+**Respuestas:**
+- `200 OK` con el préstamo actualizado.
+- `409 Conflict` si la renovación no está permitida.
+
+---
+
+## 5. Gestión de Estudiantes
+
+### `GET /api/estudiantes/:estudiante_id`
+Recupera la información de un estudiante.
+
+### `GET /api/estudiantes/:estudiante_id/prestamos`
+Lista los préstamos vigentes del estudiante.
+
+### `GET /api/estudiantes/:estudiante_id/historial`
+Lista todos los préstamos registrados del estudiante.
+
+### `GET /api/estudiantes/:estudiante_id/multas`
+Lista las multas asociadas al estudiante.
+
+### `POST /api/estudiantes/:estudiante_id/multas/:multa_id/pagar`
+Marca una multa como pagada.
+
+**Respuestas comunes:**
+- `200 OK`
+- `404 Not Found` si el estudiante o la multa no existen.
+- `400 Bad Request` si la multa no pertenece al estudiante.
+
+---
+
+## 6. Ejemplos de `curl` en PowerShell
+
+### Listar libros disponibles
+```powershell
+curl "http://localhost:3000/api/libros?disponibles=true"
+```
+
+### Crear un libro
+```powershell
+curl -X POST "http://localhost:3000/api/libros" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "libro_id": "LIB-004",
+    "titulo": "Bases de Datos Relacionales",
+    "autor": "E. F. Codd",
+    "sala": "Sistemas",
+    "alta_demanda": false
+  }'
+```
+
+### Agregar un ejemplar a un libro
+```powershell
+curl -X POST "http://localhost:3000/api/libros/LIB-001/ejemplares" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "ejemplar_id": "EJ-001-03",
+    "disponible": true
+  }'
+```
+
+### Crear un préstamo normal
+```powershell
+curl -X POST "http://localhost:3000/api/prestamos" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "estudiante_id": "EST-PRE-01",
+    "ejemplar_id": "EJ-001-01"
+  }'
+```
+
+### Crear un préstamo con fecha simulada
+```powershell
+curl -X POST "http://localhost:3000/api/prestamos" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "estudiante_id": "EST-POS-01",
+    "ejemplar_id": "EJ-002-01",
+    "fechaPrestamoSimulada": "2026-05-20T10:00:00.000Z"
+  }'
+```
+
+### Devolver un préstamo
+```powershell
+curl -X POST "http://localhost:3000/api/prestamos/<PRESTAMO_ID>/devolver" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "fecha_devolucion_real": "2026-06-01T16:00:00.000Z"
+  }'
+```
+
+### Pagar una multa
+```powershell
+curl -X POST "http://localhost:3000/api/estudiantes/EST-PRE-01/multas/<MULTA_ID>/pagar"
+```
+
+---
+
+## 7. Diccionario de errores
+
+### `400 Bad Request`
+Se retorna cuando el cliente envía payload incompleto o con valores inválidos.
+
+Ejemplos:
+- Falta `estudiante_id` o `ejemplar_id` en `POST /api/prestamos`.
+- `fechaPrestamoSimulada` no es una fecha ISO válida.
+- Falta `fecha_devolucion_real` en `POST /api/prestamos/:prestamo_id/devolver`.
+
+### `404 Not Found`
+Se retorna cuando el recurso no existe en la base de datos.
+
+Ejemplos:
+- `GET /api/libros/LIB-XXX` con libro inexistente.
+- `GET /api/estudiantes/NO-EXISTE`.
+- `GET /api/prestamos/<PRESTAMO_ID>` si no hay préstamo.
+
+### `409 Conflict`
+Se retorna cuando la solicitud viola una regla de negocio.
+
+Ejemplos:
+- `RN1` o `RN2`: límite de préstamos activos alcanzado.
+- `RN3`: intento de préstamo con un préstamo activo ya vencido.
+- `RN5`: intento de prestar un ejemplar ocupado.
+- `RN4`: préstamos bloqueados por multas pendientes.
+- Renovación no permitida porque otro estudiante espera el ejemplar.
+
+---
+
+## 8. Modelos de datos expuestos
+
+### `Libro`
+```json
+{
+  "libro_id": "LIB-001",
+  "titulo": "Algoritmos en TypeScript",
+  "autor": "Donald Knuth",
+  "sala": "Tecnología",
+  "alta_demanda": false
+}
+```
+
+### `Ejemplar`
+```json
+{
+  "ejemplar_id": "EJ-001-01",
+  "libro_id": "LIB-001",
+  "disponible": true
+}
+```
+
+### `Estudiante`
+```json
+{
+  "estudiante_id": "EST-PRE-01",
+  "nombre": "Juan Pérez",
+  "programa_academico": "Ingeniería Sistemas",
+  "semestre": 3,
+  "tipo_estudiante": "pregrado",
+  "multa_pendiente": false
+}
+```
+
+### `Prestamo`
+```json
+{
+  "prestamo_id": "...",
+  "estudiante_id": "EST-PRE-01",
+  "ejemplar_id": "EJ-001-01",
+  "fecha_prestamo": "2026-05-26T10:00:00.000Z",
+  "fecha_devolucion_esperada": "2026-06-10T10:00:00.000Z",
+  "fecha_devolucion_real": null,
+  "estado": "activo",
+  "renovado": false
+}
+```
+
+### `Multa`
+```json
+{
+  "multa_id": "...",
+  "estudiante_id": "EST-PRE-01",
+  "prestamo_id": "...",
+  "monto": 2000,
+  "dias_retraso": 1,
+  "estado": "pendiente",
+  "fecha_calculo": "2026-06-01T16:00:00.000Z"
+}
+```

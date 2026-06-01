@@ -68,7 +68,7 @@ class BaseDatos {
         fecha_devolucion_esperada TEXT NOT NULL,
         fecha_devolucion_real TEXT,
         estado TEXT NOT NULL,
-        renovado INTEGER NOT NULL,
+        renovaciones_realizadas INTEGER DEFAULT 0,
         FOREIGN KEY (estudiante_id) REFERENCES estudiantes(estudiante_id),
         FOREIGN KEY (ejemplar_id) REFERENCES ejemplares(ejemplar_id)
       );`;
@@ -86,11 +86,24 @@ class BaseDatos {
         FOREIGN KEY (prestamo_id) REFERENCES prestamos(prestamo_id)
       );`;
 
+    const createReservas = `
+      CREATE TABLE IF NOT EXISTS reservas (
+        reserva_id TEXT PRIMARY KEY,
+        estudiante_id TEXT NOT NULL,
+        ejemplar_id TEXT NOT NULL,
+        fecha_reserva TEXT NOT NULL,
+        estado TEXT NOT NULL,
+        FOREIGN KEY (estudiante_id) REFERENCES estudiantes(estudiante_id),
+        FOREIGN KEY (ejemplar_id) REFERENCES ejemplares(ejemplar_id),
+        UNIQUE(estudiante_id, ejemplar_id)
+      );`;
+
     await this.db.exec(createLibros);
     await this.db.exec(createEjemplares);
     await this.db.exec(createEstudiantes);
     await this.db.exec(createPrestamos);
     await this.db.exec(createMultas);
+    await this.db.exec(createReservas);
   }
 
   async limpiarTodos() {
@@ -98,6 +111,7 @@ class BaseDatos {
     await this.db.exec('BEGIN');
     try {
       await this.db.exec('DELETE FROM multas');
+      await this.db.exec('DELETE FROM reservas');
       await this.db.exec('DELETE FROM prestamos');
       await this.db.exec('DELETE FROM ejemplares');
       await this.db.exec('DELETE FROM libros');
@@ -148,7 +162,7 @@ class BaseDatos {
       fecha_devolucion_esperada: new Date(row.fecha_devolucion_esperada),
       fecha_devolucion_real: row.fecha_devolucion_real ? new Date(row.fecha_devolucion_real) : null,
       estado: row.estado,
-      renovado: !!row.renovado
+      renovaciones_realizadas: row.renovaciones_realizadas || 0
     };
   }
 
@@ -295,7 +309,7 @@ class BaseDatos {
   async agregarPrestamo(prestamo: Prestamo) {
     await this.ready;
     await this.db.run(
-      `INSERT INTO prestamos (prestamo_id,estudiante_id,ejemplar_id,fecha_prestamo,fecha_devolucion_esperada,fecha_devolucion_real,estado,renovado)
+      `INSERT INTO prestamos (prestamo_id,estudiante_id,ejemplar_id,fecha_prestamo,fecha_devolucion_esperada,fecha_devolucion_real,estado,renovaciones_realizadas)
        VALUES (?,?,?,?,?,?,?,?)
        ON CONFLICT(prestamo_id) DO UPDATE SET
          estudiante_id = excluded.estudiante_id,
@@ -304,7 +318,7 @@ class BaseDatos {
          fecha_devolucion_esperada = excluded.fecha_devolucion_esperada,
          fecha_devolucion_real = excluded.fecha_devolucion_real,
          estado = excluded.estado,
-         renovado = excluded.renovado`,
+         renovaciones_realizadas = excluded.renovaciones_realizadas`,
       prestamo.prestamo_id,
       prestamo.estudiante_id,
       prestamo.ejemplar_id,
@@ -312,7 +326,7 @@ class BaseDatos {
       prestamo.fecha_devolucion_esperada.toISOString(),
       prestamo.fecha_devolucion_real ? prestamo.fecha_devolucion_real.toISOString() : null,
       prestamo.estado,
-      prestamo.renovado ? 1 : 0
+      prestamo.renovaciones_realizadas
     );
   }
 
@@ -325,14 +339,14 @@ class BaseDatos {
   async actualizarPrestamo(prestamo_id: string, prestamo: Prestamo) {
     await this.ready;
     await this.db.run(
-      'UPDATE prestamos SET estudiante_id = ?, ejemplar_id = ?, fecha_prestamo = ?, fecha_devolucion_esperada = ?, fecha_devolucion_real = ?, estado = ?, renovado = ? WHERE prestamo_id = ?',
+      'UPDATE prestamos SET estudiante_id = ?, ejemplar_id = ?, fecha_prestamo = ?, fecha_devolucion_esperada = ?, fecha_devolucion_real = ?, estado = ?, renovaciones_realizadas = ? WHERE prestamo_id = ?',
       prestamo.estudiante_id,
       prestamo.ejemplar_id,
       prestamo.fecha_prestamo.toISOString(),
       prestamo.fecha_devolucion_esperada.toISOString(),
       prestamo.fecha_devolucion_real ? prestamo.fecha_devolucion_real.toISOString() : null,
       prestamo.estado,
-      prestamo.renovado ? 1 : 0,
+      prestamo.renovaciones_realizadas,
       prestamo_id
     );
   }
@@ -389,6 +403,60 @@ class BaseDatos {
       multa.estado,
       multa.fecha_calculo.toISOString(),
       multa_id
+    );
+  }
+
+  // ========== RESERVAS ==========
+
+  private rowToReserva(row: any): any {
+    return {
+      reserva_id: row.reserva_id,
+      estudiante_id: row.estudiante_id,
+      ejemplar_id: row.ejemplar_id,
+      fecha_reserva: new Date(row.fecha_reserva),
+      estado: row.estado
+    };
+  }
+
+  async agregarReserva(reserva: any) {
+    await this.ready;
+    await this.db.run(
+      'INSERT INTO reservas (reserva_id, estudiante_id, ejemplar_id, fecha_reserva, estado) VALUES (?, ?, ?, ?, ?)',
+      reserva.reserva_id,
+      reserva.estudiante_id,
+      reserva.ejemplar_id,
+      reserva.fecha_reserva.toISOString(),
+      reserva.estado
+    );
+  }
+
+  async obtenerReserva(reserva_id: string) {
+    await this.ready;
+    const row = await this.db.get('SELECT * FROM reservas WHERE reserva_id = ?', reserva_id);
+    return row ? this.rowToReserva(row) : undefined;
+  }
+
+  async obtenerReservasPorEstudiante(estudiante_id: string) {
+    await this.ready;
+    const rows = await this.db.all('SELECT * FROM reservas WHERE estudiante_id = ? AND estado = ?', estudiante_id, 'pendiente');
+    return rows.map((r: any) => this.rowToReserva(r));
+  }
+
+  async obtenerReservasPorEjemplar(ejemplar_id: string) {
+    await this.ready;
+    const rows = await this.db.all('SELECT * FROM reservas WHERE ejemplar_id = ? AND estado = ?', ejemplar_id, 'pendiente');
+    return rows.map((r: any) => this.rowToReserva(r));
+  }
+
+  async actualizarReserva(reserva_id: string, reserva: any) {
+    await this.ready;
+    await this.db.run(
+      'UPDATE reservas SET estudiante_id = ?, ejemplar_id = ?, fecha_reserva = ?, estado = ? WHERE reserva_id = ?',
+      reserva.estudiante_id,
+      reserva.ejemplar_id,
+      reserva.fecha_reserva.toISOString(),
+      reserva.estado,
+      reserva_id
     );
   }
 }

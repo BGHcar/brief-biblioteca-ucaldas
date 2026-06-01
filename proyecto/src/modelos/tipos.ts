@@ -16,6 +16,12 @@ export enum EstadoMulta {
   PAGADA = 'pagada'
 }
 
+export enum EstadoReserva {
+  PENDIENTE = 'pendiente',
+  VENCIDA = 'vencida',
+  COMPLETADA = 'completada'
+}
+
 // Entidad: Libro
 export interface Libro {
   libro_id: string;
@@ -51,7 +57,16 @@ export interface Prestamo {
   fecha_devolucion_esperada: Date;
   fecha_devolucion_real: Date | null;
   estado: EstadoPrestamo;
-  renovado: boolean;
+  renovaciones_realizadas: number;
+}
+
+// Entidad: Reserva
+export interface Reserva {
+  reserva_id: string;
+  estudiante_id: string;
+  ejemplar_id: string;
+  fecha_reserva: Date;
+  estado: EstadoReserva;
 }
 
 // Entidad: Multa
@@ -70,8 +85,15 @@ export interface CrearPrestamoDTO {
   estudiante_id: string;
   ejemplar_id: string;
   fechaPrestamoSimulada?: string; // ISO 8601 opcional para pruebas
+  fecha_actual_simulada?: string; // ISO 8601 opcional para validar horario/vencimiento
 }
 
 export interface DevolverPrestamoDTO {
   fecha_devolucion_real: string; // ISO 8601
+  codigo_campana_amnistia?: string; // Ej: "AMNISTIA_2026" para amnistía
+}
+
+export interface CrearReservaDTO {
+  estudiante_id: string;
+  ejemplar_id: string;
 }
